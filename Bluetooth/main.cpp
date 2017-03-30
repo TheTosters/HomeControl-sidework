@@ -10,9 +10,9 @@
 #include <bluetooth/hci_lib.h>
 #include "HciWrapper.hpp"
 extern "C" {
-#include "libgatt/gatt.h"
-#include "libgatt/bluetooth.h"
-#include "libgatt/gattrib.h"
+    #include "libgatt/gatt.h"
+    #include "libgatt/bluetooth.h"
+    #include "libgatt/gattrib.h"
 }
 #include "BtleCommWrapper.h"
 
@@ -29,6 +29,29 @@ struct hci_state {
   int has_error;
   char error_message[1024];
 } hci_state;
+
+class HCITest : public HciWrapperListener {
+    public:
+        virtual ~HCITest();
+        virtual void onScanStart() override;
+        virtual void onScanStop() override;
+        virtual void onNewDeviceFound(const BTLEDevice& device) override;
+};
+
+HCITest::~HCITest() {
+
+}
+
+void HCITest::onScanStart() {
+    printf("------------- START SCAN\n");
+}
+void HCITest::onScanStop() {
+    printf("------------- STOP SCAN\n");
+}
+void HCITest::onNewDeviceFound(const BTLEDevice& device) {
+    printf("------------- Device address:%s, name:%s\n", device.address.c_str(), device.name.c_str());
+}
+
 
 void btleCommunicationTest() {
     BtleCommWrapper* comm = new BtleCommWrapper();
@@ -64,7 +87,8 @@ void btleCommunicationTest() {
 
 void hciWrapperTests() {
     //Wrapper tests
-    HciWrapper* hciWrapper = new HciWrapper();
+    HCITest hciTest;
+    HciWrapper* hciWrapper = new HciWrapper(hciTest);
     if (hciWrapper->startScan() == false) {
         hciWrapper->dumpError();
     }
@@ -75,7 +99,7 @@ void hciWrapperTests() {
 
 int main(void) {
     hciWrapperTests();
-    btleCommunicationTest();
+    //btleCommunicationTest();
 
     return 0;
 }

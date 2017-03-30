@@ -6,7 +6,7 @@
  */
 #include "HciWrapper.hpp"
 #include <system_error>
-
+#include <algorithm>
 
 #define HCI_STATE_NONE       0
 #define HCI_STATE_OPEN       2
@@ -18,7 +18,21 @@
 #define EIR_NAME_COMPLETE           0x09
 #define EIR_MANUFACTURE_SPECIFIC    0xFF
 
-HciWrapper::HciWrapper() : device_id(0), device_handle(0), state(0), has_error(0) {
+BTLEDevice::BTLEDevice(std::string address, std::string name)
+: address(address), name(name) {
+
+}
+BTLEDevice::BTLEDevice(const BTLEDevice& source)
+: address(source.address), name(source.name) {
+
+}
+
+bool BTLEDevice::operator ==(const BTLEDevice& rhs) {
+    return address == rhs.address;
+}
+
+HciWrapper::HciWrapper(HciWrapperListener& delegate)
+: device_id(0), device_handle(0), state(0), has_error(0), delegate(delegate) {
     open_default_hci_device();
     if (has_error) {
         printf("ERROR: %s\n", error_message);
@@ -29,6 +43,7 @@ HciWrapper::HciWrapper() : device_id(0), device_handle(0), state(0), has_error(0
 HciWrapper::~HciWrapper() {
     close_hci_device();
 }
+
 void HciWrapper::dumpError() {
     if (has_error == TRUE) {
         printf("%s\n", error_message);
@@ -71,21 +86,24 @@ bool HciWrapper::startScan() {
     }
 
     state = HCI_STATE_FILTERING;
+
+    delegate.onScanStart();
+
     return true;
 }
 
 void HciWrapper::scanLoop() {
-    printf("Begin of scan loop!\n");
+    //printf("Begin of scan loop!\n");
     bool error = false;
-    int licznik = 10000;
-    while (error != true && licznik > 0) {
-        licznik --;
+    int counter = 10000;
+    while (error != true && counter > 0) {
+        counter --;
         int len = 0;
         unsigned char buf[HCI_MAX_EVENT_SIZE];
         while ((len = read(device_handle, buf, sizeof(buf))) < 0) {
-            licznik--;
-            if (licznik < 0) {
-                printf("End of scan loop!\n");
+            counter--;
+            if (counter < 0) {
+                //printf("End of scan loop!\n");
                 return;
             }
             if (errno == EINTR) {
@@ -107,8 +125,8 @@ void HciWrapper::scanLoop() {
 
         le_advertising_info *info = (le_advertising_info *) (meta->data + 1);
 
-        printf("Event: %d\n", info->evt_type);
-        printf("Length: %d\n", info->length);
+//        printf("Event: %d\n", info->evt_type);
+//        printf("Length: %d\n", info->length);
 
         if (info->length == 0) {
             continue;
@@ -130,24 +148,34 @@ void HciWrapper::scanLoop() {
             }
         }
     }
-    printf("End of scan loop!\n");
+//    printf("End of scan loop!\n");
+}
+
+void HciWrapper::addToDevicePool(BTLEDevice& device) {
+    if (std::find(foundDevices.begin(), foundDevices.end(), device) != foundDevices.end() ) {
+        return;
+    }
+    foundDevices.push_back(device);
+    delegate.onNewDeviceFound(device);
 }
 
 void HciWrapper::scan_process_data(uint8_t *data, size_t data_len, le_advertising_info *info) {
-    printf("Test: %p and %d\n", data, data_len);
     if (data[0] == EIR_NAME_SHORT || data[0] == EIR_NAME_COMPLETE) {
-        size_t name_len = data_len - 1;
+        size_t name_len = data_len;
         char *name = (char*) malloc(name_len + 1);
         memset(name, 0, name_len + 1);
-        memcpy(name, &data[2], name_len);
+        memcpy(name, &data[1], name_len);
 
-        char addr[18];
+        char addr[19];
         ba2str(&info->bdaddr, addr);
+        addr[18] = 0;
 
-        printf("addr=%s name=%s\n", addr, name);
+        BTLEDevice device(addr, name);
+        addToDevicePool(device);
 
         free(name);
-    } else if (data[0] == EIR_FLAGS) {
+    } /* not needed now
+      else if (data[0] == EIR_FLAGS) {
         printf("Flag type: len=%d\n", data_len);
         unsigned int i;
         for (i = 1; i < data_len; i++) {
@@ -164,7 +192,8 @@ void HciWrapper::scan_process_data(uint8_t *data, size_t data_len, le_advertisin
         }
     } else {
         printf("Unknown type: type=%X\n", data[0]);
-    }
+    } */
+
 }
 
 void HciWrapper::stopScan() {
@@ -179,6 +208,7 @@ void HciWrapper::stopScan() {
     }
 
     state = HCI_STATE_OPEN;
+    delegate.onScanStop();
 }
 
 void HciWrapper::open_default_hci_device() {
@@ -207,4 +237,12 @@ void HciWrapper::close_hci_device()
   if(state == HCI_STATE_OPEN) {
     hci_close_dev(device_handle);
   }
+}
+
+void HciWrapper::clearFoundDevices() {
+    foundDevices.clear();
+}
+
+std::vector<BTLEDevice> HciWrapper::getFoundDevices() {
+    return std::vector<BTLEDevice>(foundDevices);
 }

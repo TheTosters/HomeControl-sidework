@@ -118,15 +118,14 @@ void BtleCommWrapper::notificationEventsHandler(const uint8_t *pdu, uint16_t len
 {
     GAttrib *attrib = (GAttrib *)user_data;
     uint8_t *opdu;
-    uint16_t handle, i, olen = 0;
+    uint16_t i, olen = 0;
     size_t plen;
 
     BtleCommWrapper* wrapper = (BtleCommWrapper*)user_data;
-    handle = att_get_u16(&pdu[1]);
+    //uint16_t handle = att_get_u16(&pdu[1]);
 
     switch (pdu[0]) {
         case ATT_OP_HANDLE_NOTIFY:
-            g_print("Notification handle = 0x%04x value: ", handle);
             {
                 std::lock_guard<std::mutex> guard(wrapper->notificationMutex);
                 for (i = 3; i < len; i++) {
@@ -136,14 +135,13 @@ void BtleCommWrapper::notificationEventsHandler(const uint8_t *pdu, uint16_t len
             }
             break;
         case ATT_OP_HANDLE_IND:
-            g_print("Indication   handle = 0x%04x value: ", handle);
             for (i = 3; i < len; i++) {
-                g_print("%02x ", pdu[i]);
+                g_info("%02x ", pdu[i]);
             }
-            g_print("\n");
+            g_info("\n");
             break;
         default:
-            g_print("Invalid opcode\n");
+            g_info("Invalid opcode\n");
             return;
     }
 
@@ -160,7 +158,7 @@ void BtleCommWrapper::notificationEventsHandler(const uint8_t *pdu, uint16_t len
 void BtleCommWrapper::connectCallback(GIOChannel *io, GError *err, gpointer user_data) {
     if (err != nullptr) {
         //g_message("%s", err->message);
-        printf("BTLE connection failed, reason: %s\n", err->message);
+        g_warning("BTLE connection failed, reason: %s\n", err->message);
         g_error_free(err);
         btleCommWrapper->onConnectionFailed(io);
 
@@ -173,12 +171,12 @@ void BtleCommWrapper::connectCallback(GIOChannel *io, GError *err, gpointer user
 void BtleCommWrapper::onConnectionSuccess(GIOChannel* channel) {
 
     btleChannel = channel;  //store this object
-    printf("Discovering characteristic.\n");
+    g_info("Discovering characteristic.\n");
     btleAttribute = g_attrib_new(channel);
 
     bt_uuid_t uuid;
     if (bt_string_to_uuid(&uuid, CHAR_UUID) < 0) {
-        printf("BTLE Invalid UUID of characteristic.\n");
+        g_warning("BTLE Invalid UUID of characteristic.\n");
         setConnectingInProgress(false);
         return;
     }
@@ -196,7 +194,7 @@ void BtleCommWrapper::onConnectionFailed(GIOChannel* channel) {
 
 void BtleCommWrapper::discoverCharacteristicCallback(GSList *characteristics, uint8_t status, void *user_data) {
     if (status != 0) {
-        printf("Discover all characteristics failed\n");
+        g_warning("Discover all characteristics failed\n");
         btleCommWrapper->onDiscoveryFailed();
 
     } else {
@@ -229,7 +227,7 @@ void BtleCommWrapper::onDiscoveryFailed() {
 
 bool BtleCommWrapper::connectTo(const string& address) {
     if (isConnectingInProgress() == true) {
-        printf("Already in connecting state\n");
+        g_warning("Already in connecting state\n");
         return false;
     }
     setConnectingInProgress(true);
@@ -239,14 +237,14 @@ bool BtleCommWrapper::connectTo(const string& address) {
     //in onConnectionFailed, there is no need to assign gatt_connect to field btleChannel
     GIOChannel* tmp = gatt_connect("hci0", address.c_str(), "", "low", 0, 0, BtleCommWrapper::connectCallback, &error);
     if (tmp == nullptr) {
-        printf("Failed to connect with error: %s", error->message);
+        g_warning("Failed to connect with error: %s", error->message);
         g_error_free(error);
         setConnectingInProgress(false);
         return false;
     }
 
     //wait until we connect
-    printf("Waiting for connection\n");
+    g_info("Waiting for connection\n");
     while(true) {
         if (isConnectingInProgress() == false) {
             break;
@@ -275,13 +273,13 @@ void BtleCommWrapper::writeValueCallback(guint8 status, const guint8 *pdu, guint
     result->resultSize = status;
 
     if (status != 0) {
-        printf("Characteristic Write Request failed: %s\n", att_ecode2str(status));
+        g_warning("Characteristic Write Request failed: %s\n", att_ecode2str(status));
         result->setReady();
         return;
     }
 
     if (!dec_write_resp(pdu, plen) && !dec_exec_write_resp(pdu, plen)) {
-        printf("Protocol error [write]\n");
+        g_warning("Protocol error [write]\n");
         result->resultSize = 1;
         result->setReady();
         return;
@@ -322,7 +320,7 @@ void BtleCommWrapper::readValueCallback(guint8 status, const guint8 *pdu, guint1
     ReadSyncBlock* result = static_cast<ReadSyncBlock*>(user_data);
 
     if (plen <= 0 || status != 0) {
-        printf("Characteristic value/descriptor read failed: %s\n", att_ecode2str(status));
+        g_warning("Characteristic value/descriptor read failed: %s\n", att_ecode2str(status));
         result->setReady();
         return;
     }
@@ -333,7 +331,7 @@ void BtleCommWrapper::readValueCallback(guint8 status, const guint8 *pdu, guint1
     result->result = value; //we taking ownership of this memory
 
     if (vlen <= 0) {
-        printf("Protocol error, vLen <= 0\n");
+        g_warning("Protocol error, vLen <= 0\n");
     }
     result->setReady();
 }

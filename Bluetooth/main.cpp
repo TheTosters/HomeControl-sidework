@@ -30,6 +30,8 @@ struct hci_state {
   char error_message[1024];
 } hci_state;
 
+BTLEDevice deviceToUse("", "");
+
 class HCITest : public HciWrapperListener {
     public:
         virtual ~HCITest();
@@ -94,12 +96,39 @@ void hciWrapperTests() {
     }
     hciWrapper->scanLoop();
     hciWrapper->stopScan();
+    vector<BTLEDevice> devices = hciWrapper->getFoundDevices();
+    for(auto iter = devices.begin(); iter != devices.end(); iter ++) {
+        printf("device: %s, address:%s\n", iter->name.c_str(), iter->address.c_str());
+        if (iter->name == "HMSoft") {
+            deviceToUse = *iter;
+        }
+    }
     delete hciWrapper;
+}
+
+void btleCommunicationTest2() {
+    BtleCommWrapper* comm = new BtleCommWrapper();
+
+    //HM-10
+    if (comm->connectTo(deviceToUse.address) == true) {    //"5C:F8:21:F9:80:BD"
+        printf("SEND request\n");
+        comm->send("RTH1\r");
+        string resp = comm->readLine(3000, true);
+        printf("resp: %s\n", resp.c_str());
+        fflush(stdout);
+        //            string s = comm->readLine(4000);
+        //            printf("%d:read: %s\n", t, s.c_str());
+        usleep(20000000);
+        comm->disconnect();
+    }
+
+    printf("done!");
+    delete comm;
 }
 
 int main(void) {
     hciWrapperTests();
-    //btleCommunicationTest();
+    btleCommunicationTest2();
 
     return 0;
 }

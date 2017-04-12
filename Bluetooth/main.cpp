@@ -14,6 +14,7 @@ extern "C" {
     #include "libgatt/bluetooth.h"
     #include "libgatt/gattrib.h"
 }
+#include "BtleCommWrapperold.h"
 #include "BtleCommWrapper.h"
 
 #define HCI_STATE_NONE       0
@@ -56,7 +57,7 @@ void HCITest::onNewDeviceFound(const BTLEDevice& device) {
 
 
 void btleCommunicationTest() {
-    BtleCommWrapper* comm = new BtleCommWrapper();
+    BtleCommWrapper_old* comm = new BtleCommWrapper_old();
     //BTBulb
 //    if (comm->connectTo("D0:B5:C2:B2:1A:E1") == true) {
 //        comm->send("56FFFF0000F0AA");
@@ -67,7 +68,7 @@ void btleCommunicationTest() {
 //    }
 
     //HM-10
-    if (comm->connectTo("5C:F8:21:F9:93:74") == true) {    //"5C:F8:21:F9:80:BD"
+    if (comm->connectTo("5C:F8:21:F9:93:74", 3000) == true) {    //"5C:F8:21:F9:80:BD"
         char buf[15];
         //sprintf(buf, "CTM0002%c",13);
         //string ss(buf);
@@ -107,28 +108,51 @@ void hciWrapperTests() {
 }
 
 void btleCommunicationTest2() {
-    BtleCommWrapper* comm = new BtleCommWrapper();
+  BtleCommWrapper_old* comm = new BtleCommWrapper_old();
 
+  while (true) {
     //HM-10
-    if (comm->connectTo(deviceToUse.address) == true) {    //"5C:F8:21:F9:80:BD"
-        printf("SEND request\n");
-        comm->send("RTH1\r");
-        string resp = comm->readLine(3000, true);
-        printf("resp: %s\n", resp.c_str());
-        fflush(stdout);
-        //            string s = comm->readLine(4000);
-        //            printf("%d:read: %s\n", t, s.c_str());
-        usleep(20000000);
-        comm->disconnect();
+    if (comm->connectTo(deviceToUse.address, 4000) == true) {    //"5C:F8:21:F9:80:BD"
+      printf("SEND request\n");
+      comm->send("!!!!#RTH1\r");
+      string resp = comm->readLine(3000, true);
+      printf("resp: %s\n", resp.c_str());
+      fflush(stdout);
+      //            string s = comm->readLine(4000);
+      //            printf("%d:read: %s\n", t, s.c_str());
+      usleep(5000000);
+      comm->disconnect();
     }
+    printf("Waiting...\n");
+    usleep(5000000);
+  }
+  printf("done!");
+  delete comm;
+}
 
-    printf("done!");
-    delete comm;
+void btleCommunicationTest3() {
+  BtleCommWrapper* comm = new BtleCommWrapper();
+
+  while (true) {
+    //HM-10
+    if (comm->connectTo("5C:F8:21:F9:80:BD"/*deviceToUse.address*/, 4000) == true) {    //"5C:F8:21:F9:80:BD"
+      printf("SEND request\n");
+      comm->send("!!!!#RTH1\r");
+      string resp = comm->readLine(3000);
+      printf("resp: %s\n", resp.c_str());
+      fflush(stdout);
+      comm->disconnect();
+    }
+    printf("Waiting...\n");
+    usleep(5000000);
+  }
+  printf("done!");
+  delete comm;
 }
 
 int main(void) {
     hciWrapperTests();
-    btleCommunicationTest2();
-
+//    btleCommunicationTest2();
+    btleCommunicationTest3();
     return 0;
 }

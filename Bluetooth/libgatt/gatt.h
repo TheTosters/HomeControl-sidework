@@ -81,7 +81,7 @@ struct gatt_char {
 GIOChannel *gatt_connect(const char *src, const char *dst,
       const char *dst_type, const char *sec_level,
       int psm, int mtu, BtIOConnect connect_cb,
-      GError **gerr);
+      GError **gerr, gpointer user_data);
 
 guint gatt_discover_primary(GAttrib *attrib, bt_uuid_t *uuid, gatt_cb_t func,
 							gpointer user_data);

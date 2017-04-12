@@ -50,6 +50,8 @@ class HciWrapper {
         void dumpError();
         void clearFoundDevices();
         std::vector<BTLEDevice> getFoundDevices();
+        static void destroyAllConnections();
+        static void restartBTLE();
     private:
         int device_id;
         int device_handle;
